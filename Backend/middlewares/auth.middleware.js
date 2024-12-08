@@ -1,28 +1,39 @@
 import jwt from "jsonwebtoken";
-import dotenv from "dotenv";
+import BlacklistedToken from "../models/blacklistedToken.model.js";
 
-dotenv.config();
+const authMiddleware = async (req, res, next) => {
+  // Get token from cookies or authorization header
+  const token = req.cookies.token || req.headers.authorization?.split(" ")[1];
 
-const authMiddleware = (req, res, next) => {
-  // Get the token from the request headers
-  const token = req.headers.authorization?.split(" ")[1]; // Expected format: "Bearer <token>"
-
-  // Check if the token exists
+  // If no token is provided, respond with a user-friendly message
   if (!token) {
-    return res.status(401).json({ message: "Access denied. No token provided." });
+    return res
+      .status(401)
+      .json({ message: "Unauthorized" });
   }
 
   try {
-    // Verify the token
+    // Check if the token is blacklisted
+    const blacklistedToken = await BlacklistedToken.findOne({ token });
+    if (blacklistedToken) {
+      return res.status(401).json({
+        message: "Your session has expired.",
+      });
+    }
+
+    // Verify the token with the secret key
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Attach the decoded user info to the request object
+    // Attach the decoded user information to the request object
     req.user = decoded;
 
-    // Pass control to the next middleware or route handler
+    // Proceed to the next middleware or route handler
     next();
-  } catch (error) {
-    return res.status(401).json({ message: "Invalid or expired token." });
+  } catch (err) {
+    // Handle any errors related to invalid or expired tokens without exposing sensitive info
+    return res.status(401).json({
+      message: "Invalid or expired session.",
+    });
   }
 };
 

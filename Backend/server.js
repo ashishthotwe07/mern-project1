@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import cookieParser from "cookie-parser";
 import connectDB from "./config/db.js";
 import userRoutes from "./routes/user.routes.js"; // Import user routes
 
@@ -19,6 +20,7 @@ app.use(cors()); // This will allow all origins by default
 // Middleware
 app.use(express.json()); // To parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // To parse URL-encoded data
+app.use(cookieParser());
 
 // Basic route
 app.get("/", (req, res) => {

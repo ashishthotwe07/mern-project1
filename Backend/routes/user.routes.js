@@ -30,4 +30,8 @@ router.post("/login", loginValidationRules, UserController.login);
 // Get user profile (protected route)
 router.get("/profile", authMiddleware, UserController.getProfile);
 
+// User logout route
+router.post("/logout", authMiddleware, UserController.logout);
+
+
 export default router;

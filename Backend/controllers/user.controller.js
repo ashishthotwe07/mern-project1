@@ -1,13 +1,12 @@
 import { validationResult } from "express-validator";
 import User from "../models/user.model.js";
+import BlacklistedToken from "../models/blacklistedToken.model.js";
 
 class UserController {
   // Handle user registration
   async register(req, res) {
-    // Check if the incoming request has validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      // If errors exist, send them back as a response
       return res.status(400).json({ errors: errors.array() });
     }
 
@@ -24,7 +23,6 @@ class UserController {
       // Check if a user with the given email already exists
       const existingUser = await User.findOne({ email });
       if (existingUser) {
-        // If the user already exists, send a response indicating so
         return res.status(400).json({ message: "User already exists." });
       }
 
@@ -38,25 +36,29 @@ class UserController {
       // Generate a JWT token for the new user
       const token = newUser.generateToken();
 
+      // Set the token in a cookie (optional: set secure: true for production)
+      res.cookie("token", token, {
+        httpOnly: true, // Ensures the cookie is not accessible via JavaScript
+        secure: process.env.NODE_ENV === "production", // Only set cookie over HTTPS in production
+        maxAge: 24 * 60 * 60 * 1000, // Set cookie expiration (1 day)
+      });
+
       // Convert the user object to a plain object and remove the password field for security
       const userResponse = newUser.toObject();
       delete userResponse.password;
 
-      // Send a success response with the token and user data (excluding the password)
       res.status(201).json({
         message: "User registered and logged in successfully.",
-        token,
         user: userResponse, // Send the user object without the password
+        token, // Send the token in the response body
       });
     } catch (error) {
-      // Handle any errors during user registration
       res.status(500).json({ message: "Error registering user.", error });
     }
   }
 
   // Handle user login
   async login(req, res) {
-    // Validate the incoming request data
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -65,35 +67,34 @@ class UserController {
     try {
       const { email, password } = req.body;
 
-      // Attempt to find a user by the provided email address
       const user = await User.findOne({ email }).select("+password");
       if (!user) {
-        // If no user is found, return a 404 error
         return res.status(404).json({ message: "User not found." });
       }
 
-      // Compare the provided password with the stored password in the database
       const isMatch = await user.comparePassword(password);
       if (!isMatch) {
-        // If passwords don't match, return a 401 unauthorized error
         return res.status(401).json({ message: "Invalid credentials." });
       }
 
-      // Generate a JWT token upon successful login
       const token = user.generateToken();
 
-      // Convert the user object to a plain object and exclude the password field
+      // Set the token in a cookie (optional: set secure: true for production)
+      res.cookie("token", token, {
+        httpOnly: true, // Ensures the cookie is not accessible via JavaScript
+        secure: process.env.NODE_ENV === "production", // Only set cookie over HTTPS in production
+        maxAge: 24 * 60 * 60 * 1000, // Set cookie expiration (1 day)
+      });
+
       const userResponse = user.toObject();
       delete userResponse.password;
 
-      // Send a success response with the token and user data (excluding the password)
       res.status(200).json({
         message: "Login successful.",
-        token,
         user: userResponse, // Send the user object without the password
+        token, // Send the token in the response body
       });
     } catch (error) {
-      // Handle any errors during login
       res.status(500).json({ message: "Error logging in.", error });
     }
   }
@@ -101,25 +102,39 @@ class UserController {
   // Retrieve the profile of the currently authenticated user
   async getProfile(req, res) {
     try {
-      // Get the user ID from the request (this assumes a valid JWT has been used)
       const userId = req.user.id;
-
-      // Find the user by their ID in the database
       const user = await User.findById(userId).select("-password");
       if (!user) {
-        // If the user is not found, return a 404 error
         return res.status(404).json({ message: "User not found." });
       }
 
-      // Convert the user object to a plain object and remove the password field
       const userResponse = user.toObject();
       delete userResponse.password;
 
-      // Send the user profile data in the response (excluding the password)
-      res.status(200).json({ user: userResponse }); // Send the user object without the password
+      res.status(200).json({ user: userResponse });
     } catch (error) {
-      // Handle any errors when fetching the user profile
       res.status(500).json({ message: "Error fetching user profile.", error });
+    }
+  }
+
+  // Handle user logout
+  async logout(req, res) {
+    try {
+      const token =
+        req.cookies.token || req.headers.authorization?.split(" ")[1];
+      if (!token) {
+        return res.status(400).json({ message: "No token to logout." });
+      }
+
+      // Add the token to the blacklist
+      await BlacklistedToken.create({ token });
+
+      // Clear the cookie
+      res.clearCookie("token");
+
+      res.status(200).json({ message: "Logged out successfully." });
+    } catch (error) {
+      res.status(500).json({ message: "Error during logout.", error });
     }
   }
 }

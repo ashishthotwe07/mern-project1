@@ -3,7 +3,8 @@ import cors from "cors";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import connectDB from "./config/db.js";
-import userRoutes from "./routes/user.routes.js"; // Import user routes
+import userRoutes from "./routes/user.routes.js"; 
+import captainRoutes from "./routes/captain.routes.js";
 
 // Initialize dotenv to load environment variables
 dotenv.config();
@@ -29,6 +30,7 @@ app.get("/", (req, res) => {
 
 // Use user routes
 app.use("/api/users", userRoutes);
+app.use("/api/captains", captainRoutes);
 
 // Start the server
 app.listen(PORT, () => {
